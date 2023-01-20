@@ -51,50 +51,16 @@ impl<const N: usize, T: Component> ComponentList for [T; N] {
 impl<A: Component + 'static, B: Component + 'static> ComponentList for (A, B) {
     type Item = dyn Component + 'static;
 
-    type IntoIter<'a> = IterAB<'a, A, B> where Self: 'a;
+    type IntoIter<'a> = core::array::IntoIter<&'a (dyn Component + 'static), 2> where Self: 'a;
 
     fn iter_components<'a>(&'a self) -> Self::IntoIter<'a> {
-        IterAB::new(self)
-    }
-}
-
-pub struct IterAB<'a, A, B> {
-    tuple: &'a (A, B),
-    count: u8,
-}
-
-impl<'a, A, B> IterAB<'a, A, B> {
-    pub fn new(tuple: &'a (A, B)) -> Self {
-        Self { tuple, count: 0 }
-    }
-}
-
-impl<'a, A: Component + 'static, B: Component + 'static> Iterator for IterAB<'a, A, B> {
-    type Item = &'a (dyn Component + 'static);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.count += 1;
-        match self.count {
-            1 => Some(&self.tuple.0),
-            2 => Some(&self.tuple.1),
-            _ => None,
-        }
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let size = 0.max(2 - self.count as usize);
-        (size, Some(size))
-    }
-}
-
-impl<'a, A: Component + 'static, B: Component + 'static> ExactSizeIterator for IterAB<'a, A, B> {
-    fn len(&self) -> usize {
-        0.max(2 - self.count as usize)
+        [&self.0 as &dyn Component, &self.1 as &dyn Component].into_iter()
     }
 }
 
 pub trait Component {
     fn render(&self) -> String;
+
     fn to_dyn(self) -> Box<dyn Component>
     where
         Self: Sized + 'static,
