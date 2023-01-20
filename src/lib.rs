@@ -1,4 +1,5 @@
 mod v1;
+mod v2;
 
 use axum::{
     http::StatusCode,
@@ -14,6 +15,7 @@ pub fn build_app() -> Router {
     Router::new()
         .route("/", get(index))
         .nest("/v1", v1::router())
+        .nest("/v2", v2::router())
         .nest_service("/public", serve_dir.handle_error(handle_error))
 }
 

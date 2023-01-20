@@ -19,3 +19,11 @@ example:
 `Box::new(H1("Title")) as Box<dyn Component>`
 
 * only the first element of vec needs `as Box<dyn Component>`
+
+* second iteration: `to_dyn` method
+
+* talk about needing `where Self: Size + 'static` on `to_dyn`
+
+* third iteration: get rid of `vec![]`
+
+* implement `ComponentList` trait
