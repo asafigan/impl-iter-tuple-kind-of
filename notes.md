@@ -27,3 +27,13 @@ example:
 * third iteration: get rid of `vec![]`
 
 * implement `ComponentList` trait
+
+* talk about `type Item: Component + ?Sized;`
+
+* talk about `type IntoIter<'a>: Iterator<Item = &'a Self::Item> where Self: 'a;`
+
+* implementing it on `Vec<T>`
+
+* implementing it on `[T;N]`
+
+* talk about const generics
