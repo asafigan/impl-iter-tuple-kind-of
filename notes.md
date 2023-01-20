@@ -28,7 +28,7 @@ example:
 
 * implement `ComponentList` trait
 
-* talk about `type Item: Component + ?Sized;`
+* talk about `type Item: Component;`
 
 * talk about `type IntoIter<'a>: Iterator<Item = &'a Self::Item> where Self: 'a;`
 
@@ -37,3 +37,9 @@ example:
 * implementing it on `[T;N]`
 
 * talk about const generics
+
+* implementing it on tuple `(A, B)`
+
+* talk about `type Item = dyn Component + 'static;`
+
+* talk about changing to `type Item: Component + ?Sized;`

@@ -12,7 +12,7 @@ impl<T: ComponentList> IntoResponse for Page<T> {
 }
 
 pub trait ComponentList {
-    type Item: Component;
+    type Item: Component + ?Sized;
     type IntoIter<'a>: Iterator<Item = &'a Self::Item>
     where
         Self: 'a;
@@ -45,6 +45,51 @@ impl<const N: usize, T: Component> ComponentList for [T; N] {
     type IntoIter<'a> = core::slice::Iter<'a, T> where T: 'a;
     fn iter_components<'a>(&'a self) -> Self::IntoIter<'a> {
         self.iter()
+    }
+}
+
+impl<A: Component + 'static, B: Component + 'static> ComponentList for (A, B) {
+    type Item = dyn Component + 'static;
+
+    type IntoIter<'a> = IterAB<'a, A, B> where Self: 'a;
+
+    fn iter_components<'a>(&'a self) -> Self::IntoIter<'a> {
+        IterAB::new(self)
+    }
+}
+
+pub struct IterAB<'a, A, B> {
+    tuple: &'a (A, B),
+    count: u8,
+}
+
+impl<'a, A, B> IterAB<'a, A, B> {
+    pub fn new(tuple: &'a (A, B)) -> Self {
+        Self { tuple, count: 0 }
+    }
+}
+
+impl<'a, A: Component + 'static, B: Component + 'static> Iterator for IterAB<'a, A, B> {
+    type Item = &'a (dyn Component + 'static);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.count += 1;
+        match self.count {
+            1 => Some(&self.tuple.0),
+            2 => Some(&self.tuple.1),
+            _ => None,
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let size = 0.max(2 - self.count as usize);
+        (size, Some(size))
+    }
+}
+
+impl<'a, A: Component + 'static, B: Component + 'static> ExactSizeIterator for IterAB<'a, A, B> {
+    fn len(&self) -> usize {
+        0.max(2 - self.count as usize)
     }
 }
 

@@ -4,39 +4,15 @@ pub struct Page<T>(pub Vec<T>);
 
 impl<T: Component> IntoResponse for Page<T> {
     fn into_response(self) -> axum::response::Response {
-        let body_content = self.0.render_components();
-        let html = format!(
-            "<!Doctype html><html lang=\"en\"><head></head><body>{body_content}</body></html>"
-        );
-        Html(html).into_response()
-    }
-}
-
-pub trait ComponentList {
-    type Item: Component + ?Sized;
-    type IntoIter<'a>: Iterator<Item = &'a Self::Item>
-    where
-        Self: 'a;
-
-    fn render_components(&self) -> String {
         let mut content = String::new();
 
-        for component in self.iter_components() {
+        for component in &self.0 {
             content.push_str(&component.render());
         }
 
-        content
-    }
-
-    fn iter_components<'a>(&'a self) -> Self::IntoIter<'a>;
-}
-
-impl<T: Component> ComponentList for Vec<T> {
-    type Item = T;
-
-    type IntoIter<'a> = core::slice::Iter<'a, T> where T: 'a;
-    fn iter_components<'a>(&'a self) -> Self::IntoIter<'a> {
-        self.iter()
+        let html =
+            format!("<!Doctype html><html lang=\"en\"><head></head><body>{content}</body></html>");
+        Html(html).into_response()
     }
 }
 
@@ -70,27 +46,17 @@ impl<T: Component> Component for Ul<T> {
     }
 }
 
-pub struct HList<T> {
-    pub children: Vec<T>,
-    pub gap: u32,
-}
-
-impl<T> Default for HList<T> {
-    fn default() -> Self {
-        Self {
-            children: Default::default(),
-            gap: Default::default(),
-        }
-    }
-}
+pub struct HList<T>(pub Vec<T>);
 
 impl<T: Component> Component for HList<T> {
     fn render(&self) -> String {
-        format!(
-            "<div style=\"display: flex; gap: {}px; align-items: center;\">{}</div>",
-            self.gap,
-            self.children.render_components()
-        )
+        let mut content = String::new();
+
+        for component in &self.0 {
+            content.push_str(&component.render());
+        }
+
+        format!("<div style=\"display: flex; align-items: center;\">{content}</div>")
     }
 }
 

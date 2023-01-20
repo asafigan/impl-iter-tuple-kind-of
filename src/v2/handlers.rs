@@ -40,16 +40,13 @@ async fn index() -> impl IntoResponse {
 }
 
 fn header() -> impl Component {
-    HList {
-        children: vec![
-            Img {
-                src: "/public/logo.svg",
-                width: 50,
-                height: 50,
-            }
-            .to_dyn(),
-            H2("Kansai Rust").to_dyn(),
-        ],
-        ..Default::default()
-    }
+    HList(vec![
+        Img {
+            src: "/public/logo.svg",
+            width: 50,
+            height: 50,
+        }
+        .to_dyn(),
+        H2("Kansai Rust").to_dyn(),
+    ])
 }
