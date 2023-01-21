@@ -30,6 +30,36 @@ where
     }
 }
 
+trait ToIter<'b, Z> {
+    type Iter<'a, T>: Iterator<Item = T>
+    where
+        Self: 'a + 'b,
+        T: 'a,
+        'b: 'a,
+        'a: 'b;
+    fn to_iter<'a: 'b, T: Identity<Z> + 'a>(&'a self) -> Self::Iter<'a, T>
+    where
+        'b: 'a;
+}
+
+impl<'b, A: 'b, B: 'b, Z> ToIter<'b, Z> for (A, B)
+where
+    Z: From<&'b A> + From<&'b B> + 'b,
+{
+    type Iter<'a, T> = core::array::IntoIter<T, 2>
+    where
+        Self: 'a + 'b,
+        T: 'a,
+        'b: 'a,
+        'a: 'b;
+    fn to_iter<'a: 'b, T: Identity<Z> + 'a>(&'a self) -> Self::Iter<'a, T>
+    where
+        'b: 'a,
+    {
+        [T::identity(Z::from(&self.0)), T::identity(Z::from(&self.1))].into_iter()
+    }
+}
+
 trait AsIter<'b, Z: ?Sized> {
     type Iter<'a, T: ?Sized>: Iterator<Item = &'a T>
     where
@@ -128,6 +158,23 @@ mod test {
         assert_eq!(values, [1, 2]);
     }
 
+    #[test]
+    fn to_iter() {
+        let values: Vec<_> = (1_u8, 2_i8)
+            .to_iter::<&dyn Example>()
+            .map(|x| x.example())
+            .collect();
+
+        assert_eq!(values, [1, 2]);
+    }
+
+    #[test]
+    fn example_list() {
+        let values: Vec<_> = (1_u8, 2_i8).iter_examples().map(|x| x.example()).collect();
+
+        assert_eq!(values, [1, 2]);
+    }
+
     trait Example {
         fn example(&self) -> i32;
     }
@@ -150,13 +197,28 @@ mod test {
         }
     }
 
-    trait ExampleList {
+    trait ExampleList<'a> {
         type Item: Example + ?Sized;
-        type IntoIter<'a>: Iterator<Item = &'a Self::Item>
+        type IntoIter: Iterator<Item = &'a Self::Item>
         where
             Self: 'a;
 
-        fn iter_examples<'a>(&'a self) -> Self::IntoIter<'a>;
+        fn iter_examples(&'a self) -> Self::IntoIter;
+    }
+
+    impl<'a, T> ExampleList<'a> for T
+    where
+        T: ToIter<'a, &'a dyn Example>,
+    {
+        type Item = dyn Example + 'a;
+
+        type IntoIter = T::Iter<'a, &'a (dyn Example + 'a)>
+        where
+            Self: 'a;
+
+        fn iter_examples(&'a self) -> Self::IntoIter {
+            self.to_iter()
+        }
     }
 
     impl Example for u8 {
