@@ -54,7 +54,7 @@ impl<A: Component + 'static, B: Component + 'static> ComponentList for (A, B) {
     type IntoIter<'a> = core::array::IntoIter<&'a (dyn Component + 'static), 2> where Self: 'a;
 
     fn iter_components<'a>(&'a self) -> Self::IntoIter<'a> {
-        [&self.0 as &dyn Component, &self.1 as &dyn Component].into_iter()
+        [&self.0 as &dyn Component, &self.1].into_iter()
     }
 }
 
