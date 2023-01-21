@@ -34,22 +34,28 @@ where
     }
 }
 
-trait ToIter<Z: ?Sized> {
+trait ToIter<'b, Z: ?Sized> {
     type Iter<'a, T>: Iterator<Item = &'a T>
     where
         Self: 'a,
-        T: 'a + ?Sized;
-    fn to_iter<'a, T: RefIdentity<Z> + 'static + ?Sized>(&'a self) -> Self::Iter<'a, T>;
+        T: 'a + ?Sized,
+        'b: 'a;
+    fn to_iter<'a, T: RefIdentity<Z> + ?Sized>(&'a self) -> Self::Iter<'a, T>
+    where
+        'b: 'a;
 }
 
-impl<A, B, Z> ToIter<Z> for (A, B)
+impl<'b, A, B, Z> ToIter<'b, Z> for (A, B)
 where
-    Z: RefFromRef<A> + RefFromRef<B> + 'static + ?Sized,
+    Z: RefFromRef<A> + RefFromRef<B> + 'b + ?Sized,
 {
     type Iter<'a, T> = core::array::IntoIter<&'a T, 2>
     where
-        Self: 'a, T: 'a+ ?Sized;
-    fn to_iter<'a, T: RefIdentity<Z> + 'static + ?Sized>(&'a self) -> Self::Iter<'a, T> {
+        Self: 'a, T: 'a + ?Sized, 'b: 'a;
+    fn to_iter<'a, T: RefIdentity<Z> + ?Sized>(&'a self) -> Self::Iter<'a, T>
+    where
+        'b: 'a,
+    {
         [
             T::ref_identity(Z::ref_from_ref(&self.0)),
             T::ref_identity(Z::ref_from_ref(&self.1)),
@@ -219,7 +225,7 @@ mod test {
 
     impl<T> ExampleList for T
     where
-        T: ToIter<dyn Example>,
+        T: ToIter<'static, dyn Example>,
     {
         type Item = dyn Example;
 
