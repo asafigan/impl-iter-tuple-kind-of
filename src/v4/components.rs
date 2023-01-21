@@ -49,7 +49,7 @@ impl<const N: usize, T: Component> ComponentList for [T; N] {
 }
 
 impl<A: Component + 'static, B: Component + 'static> ComponentList for (A, B) {
-    type Item = dyn Component + 'static;
+    type Item = dyn Component;
 
     type IntoIter<'a> = core::array::IntoIter<&'a (dyn Component + 'static), 2> where Self: 'a;
 

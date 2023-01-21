@@ -184,7 +184,7 @@ mod test {
         fn example(&self) -> i32;
     }
 
-    impl<T: Example + 'static> RefFromRef<T> for dyn Example + 'static {
+    impl<T: Example + 'static> RefFromRef<T> for dyn Example {
         fn ref_from_ref(value_ref: &T) -> &Self {
             value_ref
         }
