@@ -7,6 +7,7 @@ impl<T: Sized> Identity<T> for T {
         value
     }
 }
+
 trait RefIdentity<Z: ?Sized> {
     fn ref_identity(value: &Z) -> &Self;
 }
@@ -19,6 +20,20 @@ impl<T: ?Sized> RefIdentity<T> for T {
 
 trait RefFromRef<T> {
     fn ref_from_ref(value_ref: &T) -> &Self;
+}
+
+trait MutIdentity<Z: ?Sized> {
+    fn mut_identity(value: &mut Z) -> &mut Self;
+}
+
+impl<T: ?Sized> MutIdentity<T> for T {
+    fn mut_identity(value: &mut Self) -> &mut Self {
+        value
+    }
+}
+
+trait MutFromMut<T> {
+    fn mut_from_mut(value_ref: &mut T) -> &mut Self;
 }
 
 trait ToArray<'b, Z, const N: usize> {
@@ -40,6 +55,7 @@ trait AsIter<'b, Z: ?Sized> {
         Self: 'a,
         T: 'a + ?Sized,
         'b: 'a;
+
     fn as_iter<'a, T: RefIdentity<Z> + ?Sized>(&'a self) -> Self::Iter<'a, T>
     where
         'b: 'a;
@@ -52,6 +68,7 @@ where
     type Iter<'a, T> = core::array::IntoIter<&'a T, 2>
     where
         Self: 'a, T: 'a + ?Sized, 'b: 'a;
+
     fn as_iter<'a, T: RefIdentity<Z> + ?Sized>(&'a self) -> Self::Iter<'a, T>
     where
         'b: 'a,
@@ -59,6 +76,38 @@ where
         [
             T::ref_identity(Z::ref_from_ref(&self.0)),
             T::ref_identity(Z::ref_from_ref(&self.1)),
+        ]
+        .into_iter()
+    }
+}
+
+trait AsIterMut<'b, Z: ?Sized> {
+    type Iter<'a, T>: Iterator<Item = &'a mut T>
+    where
+        Self: 'a,
+        T: 'a + ?Sized,
+        'b: 'a;
+
+    fn as_iter_mut<'a, T: MutIdentity<Z> + ?Sized>(&'a mut self) -> Self::Iter<'a, T>
+    where
+        'b: 'a;
+}
+
+impl<'b, A, B, Z> AsIterMut<'b, Z> for (A, B)
+where
+    Z: MutFromMut<A> + MutFromMut<B> + 'b + ?Sized,
+{
+    type Iter<'a, T> = core::array::IntoIter<&'a mut T, 2>
+    where
+        Self: 'a, T: 'a + ?Sized, 'b: 'a;
+
+    fn as_iter_mut<'a, T: MutIdentity<Z> + ?Sized>(&'a mut self) -> Self::Iter<'a, T>
+    where
+        'b: 'a,
+    {
+        [
+            T::mut_identity(Z::mut_from_mut(&mut self.0)),
+            T::mut_identity(Z::mut_from_mut(&mut self.1)),
         ]
         .into_iter()
     }
@@ -100,17 +149,17 @@ mod test {
     #[test]
     fn to_array() {
         for x in (1_u8, 2_i8).to_array_mut::<&mut dyn Example>() {
-            dbg!(x.example());
+            dbg!(x.add_one());
         }
 
         for x in (1_u8, 2_i8).to_array_owned::<Box<dyn Example>>() {
-            dbg!(x.example());
+            dbg!(x.value());
         }
 
         let values: Vec<_> = (1_u8, 2_i8)
             .to_array::<&dyn Example>()
             .into_iter()
-            .map(|x| x.example())
+            .map(|x| x.value())
             .collect();
 
         assert_eq!(values, [1, 2]);
@@ -120,32 +169,52 @@ mod test {
     fn as_iter() {
         let values: Vec<_> = (1_u8, 2_i8)
             .as_iter::<dyn Example>()
-            .map(|x| x.example())
+            .map(|x| x.value())
             .collect();
 
         assert_eq!(values, [1, 2]);
     }
 
     #[test]
+    fn as_iter_mut() {
+        let mut data = (1_u8, 2_i8);
+
+        for x in data.as_iter_mut::<dyn Example>() {
+            x.add_one();
+        }
+
+        let values: Vec<_> = data.as_iter::<dyn Example>().map(|x| x.value()).collect();
+
+        assert_eq!(values, [2, 3]);
+    }
+
+    #[test]
     fn example_list_tuple() {
-        let values: Vec<_> = (1_u8, 2_i8).iter_examples().map(|x| x.example()).collect();
+        let values: Vec<_> = (1_u8, 2_i8).iter_examples().map(|x| x.value()).collect();
 
         assert_eq!(values, [1, 2]);
     }
 
     #[test]
     fn example_list_array() {
-        let values: Vec<_> = [1_u8, 2_u8].iter_examples().map(|x| x.example()).collect();
+        let values: Vec<_> = [1_u8, 2_u8].iter_examples().map(|x| x.value()).collect();
 
         assert_eq!(values, [1, 2]);
     }
 
     trait Example {
-        fn example(&self) -> i32;
+        fn value(&self) -> i32;
+        fn add_one(&mut self);
     }
 
     impl<T: Example + 'static> RefFromRef<T> for dyn Example {
         fn ref_from_ref(value_ref: &T) -> &Self {
+            value_ref
+        }
+    }
+
+    impl<T: Example + 'static> MutFromMut<T> for dyn Example {
+        fn mut_from_mut(value_ref: &mut T) -> &mut Self {
             value_ref
         }
     }
@@ -203,14 +272,22 @@ mod test {
     }
 
     impl Example for u8 {
-        fn example(&self) -> i32 {
+        fn value(&self) -> i32 {
             *self as i32
+        }
+
+        fn add_one(&mut self) {
+            *self += 1;
         }
     }
 
     impl Example for i8 {
-        fn example(&self) -> i32 {
+        fn value(&self) -> i32 {
             *self as i32
+        }
+
+        fn add_one(&mut self) {
+            *self += 1;
         }
     }
 }
