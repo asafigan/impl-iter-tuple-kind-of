@@ -17,6 +17,10 @@ impl<T: ?Sized> RefIdentity<T> for T {
     }
 }
 
+trait RefFromRef<T> {
+    fn ref_from_ref(value_ref: &T) -> &Self;
+}
+
 trait ToArray<'b, Z, const N: usize> {
     fn to_array<'a: 'b, T: Identity<Z>>(&'a self) -> [T; N];
 }
@@ -30,33 +34,27 @@ where
     }
 }
 
-trait ToIter<'b, Z> {
-    type Iter<'a, T>: Iterator<Item = T>
+trait ToIter<Z: ?Sized> {
+    type Iter<'a, T>: Iterator<Item = &'a T>
     where
-        Self: 'a + 'b,
-        T: 'a,
-        'b: 'a,
-        'a: 'b;
-    fn to_iter<'a: 'b, T: Identity<Z> + 'a>(&'a self) -> Self::Iter<'a, T>
-    where
-        'b: 'a;
+        Self: 'a,
+        T: 'a + ?Sized;
+    fn to_iter<'a, T: RefIdentity<Z> + 'static + ?Sized>(&'a self) -> Self::Iter<'a, T>;
 }
 
-impl<'b, A: 'b, B: 'b, Z> ToIter<'b, Z> for (A, B)
+impl<A, B, Z> ToIter<Z> for (A, B)
 where
-    Z: From<&'b A> + From<&'b B> + 'b,
+    Z: RefFromRef<A> + RefFromRef<B> + 'static + ?Sized,
 {
-    type Iter<'a, T> = core::array::IntoIter<T, 2>
+    type Iter<'a, T> = core::array::IntoIter<&'a T, 2>
     where
-        Self: 'a + 'b,
-        T: 'a,
-        'b: 'a,
-        'a: 'b;
-    fn to_iter<'a: 'b, T: Identity<Z> + 'a>(&'a self) -> Self::Iter<'a, T>
-    where
-        'b: 'a,
-    {
-        [T::identity(Z::from(&self.0)), T::identity(Z::from(&self.1))].into_iter()
+        Self: 'a, T: 'a+ ?Sized;
+    fn to_iter<'a, T: RefIdentity<Z> + 'static + ?Sized>(&'a self) -> Self::Iter<'a, T> {
+        [
+            T::ref_identity(Z::ref_from_ref(&self.0)),
+            T::ref_identity(Z::ref_from_ref(&self.1)),
+        ]
+        .into_iter()
     }
 }
 
@@ -161,7 +159,7 @@ mod test {
     #[test]
     fn to_iter() {
         let values: Vec<_> = (1_u8, 2_i8)
-            .to_iter::<&dyn Example>()
+            .to_iter::<dyn Example>()
             .map(|x| x.example())
             .collect();
 
@@ -169,14 +167,27 @@ mod test {
     }
 
     #[test]
-    fn example_list() {
+    fn example_list_tuple() {
         let values: Vec<_> = (1_u8, 2_i8).iter_examples().map(|x| x.example()).collect();
+
+        assert_eq!(values, [1, 2]);
+    }
+
+    #[test]
+    fn example_list_array() {
+        let values: Vec<_> = [1_u8, 2_u8].iter_examples().map(|x| x.example()).collect();
 
         assert_eq!(values, [1, 2]);
     }
 
     trait Example {
         fn example(&self) -> i32;
+    }
+
+    impl<T: Example + 'static> RefFromRef<T> for dyn Example + 'static {
+        fn ref_from_ref(value_ref: &T) -> &Self {
+            value_ref
+        }
     }
 
     impl<'a, T: Example> From<&'a T> for &'a dyn Example {
@@ -197,27 +208,37 @@ mod test {
         }
     }
 
-    trait ExampleList<'a> {
+    trait ExampleList {
         type Item: Example + ?Sized;
-        type IntoIter: Iterator<Item = &'a Self::Item>
+        type IntoIter<'a>: Iterator<Item = &'a Self::Item>
         where
             Self: 'a;
 
-        fn iter_examples(&'a self) -> Self::IntoIter;
+        fn iter_examples<'a>(&'a self) -> Self::IntoIter<'a>;
     }
 
-    impl<'a, T> ExampleList<'a> for T
+    impl<T> ExampleList for T
     where
-        T: ToIter<'a, &'a dyn Example>,
+        T: ToIter<dyn Example>,
     {
-        type Item = dyn Example + 'a;
+        type Item = dyn Example;
 
-        type IntoIter = T::Iter<'a, &'a (dyn Example + 'a)>
+        type IntoIter<'a> = T::Iter<'a, dyn Example>
         where
             Self: 'a;
 
-        fn iter_examples(&'a self) -> Self::IntoIter {
+        fn iter_examples<'a>(&'a self) -> Self::IntoIter<'a> {
             self.to_iter()
+        }
+    }
+
+    impl<T: Example, const N: usize> ExampleList for [T; N] {
+        type Item = T;
+
+        type IntoIter<'a> = core::slice::Iter<'a, T> where T: 'a;
+
+        fn iter_examples<'a>(&'a self) -> Self::IntoIter<'a> {
+            self.iter()
         }
     }
 
