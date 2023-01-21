@@ -34,67 +34,31 @@ where
     }
 }
 
-trait ToIter<'b, Z: ?Sized> {
+trait AsIter<'b, Z: ?Sized> {
     type Iter<'a, T>: Iterator<Item = &'a T>
     where
         Self: 'a,
         T: 'a + ?Sized,
         'b: 'a;
-    fn to_iter<'a, T: RefIdentity<Z> + ?Sized>(&'a self) -> Self::Iter<'a, T>
+    fn as_iter<'a, T: RefIdentity<Z> + ?Sized>(&'a self) -> Self::Iter<'a, T>
     where
         'b: 'a;
 }
 
-impl<'b, A, B, Z> ToIter<'b, Z> for (A, B)
+impl<'b, A, B, Z> AsIter<'b, Z> for (A, B)
 where
     Z: RefFromRef<A> + RefFromRef<B> + 'b + ?Sized,
 {
     type Iter<'a, T> = core::array::IntoIter<&'a T, 2>
     where
         Self: 'a, T: 'a + ?Sized, 'b: 'a;
-    fn to_iter<'a, T: RefIdentity<Z> + ?Sized>(&'a self) -> Self::Iter<'a, T>
+    fn as_iter<'a, T: RefIdentity<Z> + ?Sized>(&'a self) -> Self::Iter<'a, T>
     where
         'b: 'a,
     {
         [
             T::ref_identity(Z::ref_from_ref(&self.0)),
             T::ref_identity(Z::ref_from_ref(&self.1)),
-        ]
-        .into_iter()
-    }
-}
-
-trait AsIter<'b, Z: ?Sized> {
-    type Iter<'a, T: ?Sized>: Iterator<Item = &'a T>
-    where
-        Self: 'a + 'b,
-        T: 'a,
-        'a: 'b,
-        'b: 'a;
-
-    fn iter<'a: 'b, T: RefIdentity<Z> + ?Sized>(&'a self) -> Self::Iter<'a, T>
-    where
-        'b: 'a;
-}
-
-impl<'b, A: 'b, B: 'b, Z: ?Sized> AsIter<'b, Z> for (A, B)
-where
-    &'b Z: From<&'b A> + From<&'b B> + 'b,
-{
-    type Iter<'a, T: ?Sized> = core::array::IntoIter<&'a T, 2>
-    where
-        Self: 'a + 'b,
-        T: 'a,
-        'a: 'b,
-        'b: 'a;
-
-    fn iter<'a: 'b, T: RefIdentity<Z> + ?Sized>(&'a self) -> Self::Iter<'a, T>
-    where
-        'b: 'a,
-    {
-        [
-            T::ref_identity(<&'a Z>::from(&self.0)),
-            T::ref_identity(<&'a Z>::from(&self.1)),
         ]
         .into_iter()
     }
@@ -155,17 +119,7 @@ mod test {
     #[test]
     fn as_iter() {
         let values: Vec<_> = (1_u8, 2_i8)
-            .iter::<dyn Example>()
-            .map(|x| x.example())
-            .collect();
-
-        assert_eq!(values, [1, 2]);
-    }
-
-    #[test]
-    fn to_iter() {
-        let values: Vec<_> = (1_u8, 2_i8)
-            .to_iter::<dyn Example>()
+            .as_iter::<dyn Example>()
             .map(|x| x.example())
             .collect();
 
@@ -225,7 +179,7 @@ mod test {
 
     impl<T> ExampleList for T
     where
-        T: ToIter<'static, dyn Example>,
+        T: AsIter<'static, dyn Example>,
     {
         type Item = dyn Example;
 
@@ -234,7 +188,7 @@ mod test {
             Self: 'a;
 
         fn iter_examples<'a>(&'a self) -> Self::IntoIter<'a> {
-            self.to_iter()
+            self.as_iter()
         }
     }
 
